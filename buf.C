@@ -66,29 +66,127 @@ BufMgr::~BufMgr() {
 const Status BufMgr::allocBuf(int & frame) 
 {
 
+    int iter = 0;
 
+    //clockHand is initialized to the last index,we move to the first
+    advanceClock();
 
+    while(1){
+        
+        
+        //rule1:check valid bit, allocate directly if false
+        if(bufTable[clockHand].valid == false){
+            
+            //firstly check dirty bit, write to disk if 
+            // if(bufTable[clockHand].dirty == true){
+            //     //UNIXERR if the call to the I/O layer returned an error when a dirty page was being written to disk and OK otherwise
+            //     bufTable[clockHand].pinCnt = 0;
+            //     Status stat = flushFile(bufTable[clockHand].file);
+            //     if(stat != OK){
+            //         return stat;
+            //     }
 
+            // }
 
+            //remove from hashtable & set frame
+            //hashTable->remove(bufTable[clockHand].file, bufTable[clockHand].pageNo);
+            //allocate a valid page
+            
+            frame = bufTable[clockHand].frameNo;
+            return OK;
+        }else{
+            //check refBit and pinCnt
+            if(bufTable[clockHand].refbit == true){
+                bufTable[clockHand].refbit = false;
+                continue;
+            }
+            
+            if(bufTable[clockHand].refbit == false && bufTable[clockHand].pinCnt == 0){
+                
+                if(bufTable[clockHand].dirty == true){
+                    
+                    //
+                    bufTable[clockHand].pinCnt = 0;
+                    Status stat = bufTable[clockHand].file->writePage(bufTable[clockHand].pageNo, &bufPool[clockHand]);
+                    if(stat != OK){
+                        return stat;
+                    }
+                }
+                
+                hashTable->remove(bufTable[clockHand].file, bufTable[clockHand].pageNo);
+                frame = bufTable[clockHand].frameNo;
+                return OK;
+            }
+            
+            advanceClock();
+
+            if(clockHand == 0){
+                iter++;
+                if(iter == 2){
+                    return BUFFEREXCEEDED;
+                }
+            }
+        }
+
+        
+
+    }
 
 }
 
 	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
+    int frameNo = 0;
+    Status stat = OK;
+    if(hashTable->lookup(file, PageNo, frameNo) != HASHNOTFOUND){
+        
+        
+        bufTable[frameNo].refbit = true;
+        bufTable[frameNo].pinCnt++;
+        page = &bufPool[frameNo];
 
+    }else{
+        stat = allocBuf(frameNo);
+        if(stat != OK){
+            return stat;
+        }
+        stat = file->readPage(PageNo, &bufPool[frameNo]);
+        if(stat != OK){
+            return stat;
+        }
+        bufTable[frameNo].Set(file, PageNo);
 
+        stat = hashTable->insert(file,PageNo, frameNo);
+        if(stat != OK){
+            return stat;
+        }
+        page = &bufPool[frameNo];
+    }
 
-
-
+    return stat;
 }
 
 
 const Status BufMgr::unPinPage(File* file, const int PageNo, 
 			       const bool dirty) 
 {
+    int frameNo = 0;
+    Status stat = hashTable->lookup(file, PageNo, frameNo);
+    
+    if(stat != OK){
+        return stat;
+    }
+    if(bufTable[frameNo].pinCnt == 0){
+        return PAGENOTPINNED;
+    }
+    bufTable[frameNo].pinCnt--;
+    if(dirty == true){
+        bufTable[frameNo].dirty = true;
+    }
+    
 
-
+    return OK;
 
 
 
@@ -96,12 +194,28 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
 
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
+    int frameNo = 0;
+    Status stat = OK;
+    stat = file->allocatePage(pageNo);
+    if(stat != OK){
+        return stat;
+    }
+    stat = allocBuf(frameNo);
+    
+    if(stat != OK){
+        return stat;
+    }
+    
+    stat = hashTable->insert(file, pageNo, frameNo);
+    if(stat != 0){
+        return stat;
+    }
+    
+    bufTable[frameNo].Set(file, pageNo);
+    page = &bufPool[frameNo];
 
 
-
-
-
-
+    return stat;
 
 }
 
