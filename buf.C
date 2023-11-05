@@ -77,21 +77,6 @@ const Status BufMgr::allocBuf(int & frame)
         //rule1:check valid bit, allocate directly if false
         if(bufTable[clockHand].valid == false){
             
-            //firstly check dirty bit, write to disk if 
-            // if(bufTable[clockHand].dirty == true){
-            //     //UNIXERR if the call to the I/O layer returned an error when a dirty page was being written to disk and OK otherwise
-            //     bufTable[clockHand].pinCnt = 0;
-            //     Status stat = flushFile(bufTable[clockHand].file);
-            //     if(stat != OK){
-            //         return stat;
-            //     }
-
-            // }
-
-            //remove from hashtable & set frame
-            //hashTable->remove(bufTable[clockHand].file, bufTable[clockHand].pageNo);
-            //allocate a valid page
-            
             frame = bufTable[clockHand].frameNo;
             return OK;
         }else{
