@@ -67,7 +67,7 @@ const Status BufMgr::allocBuf(int & frame)
 {
 
     int iter = 0;
-
+    unsigned int startHand = clockHand;
     //clockHand is initialized to the last index,we move to the first
     advanceClock();
 
@@ -83,6 +83,13 @@ const Status BufMgr::allocBuf(int & frame)
             //check refBit and pinCnt
             if(bufTable[clockHand].refbit == true){
                 bufTable[clockHand].refbit = false;
+                advanceClock();
+                if(clockHand == startHand){
+                iter++;
+                if(iter == 2){
+                    return BUFFEREXCEEDED;
+                }
+            }
                 continue;
             }
             
@@ -105,7 +112,7 @@ const Status BufMgr::allocBuf(int & frame)
             
             advanceClock();
 
-            if(clockHand == 0){
+            if(clockHand == startHand){
                 iter++;
                 if(iter == 2){
                     return BUFFEREXCEEDED;
@@ -140,12 +147,13 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
         if(stat != OK){
             return stat;
         }
-        bufTable[frameNo].Set(file, PageNo);
+        
 
         stat = hashTable->insert(file,PageNo, frameNo);
         if(stat != OK){
             return stat;
         }
+        bufTable[frameNo].Set(file, PageNo);
         page = &bufPool[frameNo];
     }
 
